@@ -311,7 +311,7 @@
       <div class="tap-ring" id="tapRing"></div>
     </div>
     <div class="studio-name">KIQUE TATTOO</div>
-    <div class="studio-tagline">Arte en tu piel · Diseños únicos</div>
+    <div class="studio-tagline">Llevamos tu idea a la piel</div>
   </div>
 
   <div class="divider"><div class="divider-line"></div><div class="divider-diamond"></div><div class="divider-line"></div></div>
@@ -392,37 +392,43 @@ const CONFIG = {
       titulo: '20% OFF',
       sub: '1er tatuaje (hasta 10cm)',
       color: '#f0b429', bg: '#1a1000',
-      msg: '¡20% de descuento en tu primer tatuaje! Válido para 1 diseño de hasta 10 cm. Mostrá esta pantalla al reservar tu turno.'
+      msg: '¡20% de descuento en tu primer tatuaje! Válido para 1 diseño de hasta 10 cm. Mostrá esta pantalla al reservar tu turno.',
+      weight: 25,
     },
     {
       titulo: '2 × 1',
       sub: '2 diseños al precio de 1 (hasta 5cm c/u)',
       color: '#e85d4a', bg: '#200a0a',
-      msg: '¡2 diseños al precio de 1! Cada diseño de hasta 5 cm. Válido en tu próxima sesión. Mostrá la captura al reservar.'
+      msg: '¡2 diseños al precio de 1! Cada diseño de hasta 5 cm. Válido en tu próxima sesión. Mostrá la captura al reservar.',
+      weight: 22,
     },
     {
       titulo: '10% OFF',
       sub: '2da sesión',
       color: '#10b981', bg: '#0a1e12',
-      msg: '¡10% de descuento en tu segunda sesión! Guardá la captura como comprobante y presentala al reservar tu turno.'
+      msg: '¡10% de descuento en tu segunda sesión! Guardá la captura como comprobante y presentala al reservar tu turno.',
+      weight: 25,
     },
     {
       titulo: 'Sticker Pack',
       sub: 'Pack descargable para WhatsApp',
       color: '#3b82f6', bg: '#0a1428',
-      msg: '¡Ganaste un pack de stickers exclusivos para WhatsApp! Enviá la captura por WhatsApp y te lo mandamos al instante.'
+      msg: '¡Ganaste un pack de stickers exclusivos para WhatsApp! Enviá la captura por WhatsApp y te lo mandamos al instante.',
+      weight: 10,
     },
     {
       titulo: 'Retoque Gratis',
       sub: 'Líneas y color de tu tatuaje',
       color: '#ec4899', bg: '#1a0818',
-      msg: '¡Una sesión de retoque completamente gratis! Válido para retoques de líneas y color en cualquier tatuaje hecho en el estudio.'
+      msg: '¡Una sesión de retoque completamente gratis! Válido para retoques de líneas y color en cualquier tatuaje hecho en el estudio.',
+      weight: 15,
     },
     {
       titulo: '🎁 Sorpresa',
       sub: '¡Vení a descubrirlo!',
       color: '#a78bfa', bg: '#100a1e',
-      msg: '¡Premio Sorpresa! Vení al estudio y te contamos qué ganaste. Te prometemos que vale la pena. 😏'
+      msg: '¡Ganaste la bolsita sorpresa! Al finalizar tu sesión te vas a llevar de regalo una bolsita con diferentes sorpresas que preparé especialmente para vos. 🎁',
+      weight: 3,
     },
   ],
 };
@@ -454,6 +460,11 @@ function switchTab(tab) {
   });
   if (tab === 'ruleta') drawWheel(rotation);
 }
+
+// — Center logo image —
+const centerLogoImg = new Image();
+centerLogoImg.onload = () => drawWheel(rotation);
+centerLogoImg.src = 'data:image/png;base64,' + LOGO_B64;
 
 // — Wheel —
 const canvas = document.getElementById('wheel');
@@ -494,17 +505,34 @@ function drawWheel(rot) {
     ctx.lineTo(cx + (r + 2) * Math.cos(a), cy + (r + 2) * Math.sin(a));
     ctx.strokeStyle = '#f0b429'; ctx.lineWidth = 2; ctx.stroke();
   }
-  // Center
+  // Center circle with profile photo
   const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 32);
   grad.addColorStop(0, '#2a1a00'); grad.addColorStop(1, '#0a0800');
   ctx.beginPath(); ctx.arc(cx, cy, 32, 0, 2 * Math.PI);
   ctx.fillStyle = grad; ctx.fill();
   ctx.strokeStyle = '#f0b42988'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.fillStyle = '#f0b429';
-  ctx.font = "bold 10px 'Bebas Neue', sans-serif";
-  ctx.textAlign = 'center'; ctx.fillText('KIQUE', cx, cy + 4);
+  // Draw profile photo clipped to circle
+  if (centerLogoImg.complete && centerLogoImg.naturalWidth) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 30, 0, 2 * Math.PI);
+    ctx.clip();
+    ctx.drawImage(centerLogoImg, cx - 30, cy - 30, 60, 60);
+    ctx.restore();
+  }
 }
 drawWheel(0);
+
+// — Selección ponderada —
+function weightedRandom() {
+  const totalWeight = CONFIG.premios.reduce((sum, p) => sum + p.weight, 0);
+  let rand = Math.random() * totalWeight;
+  for (let i = 0; i < CONFIG.premios.length; i++) {
+    rand -= CONFIG.premios[i].weight;
+    if (rand <= 0) return i;
+  }
+  return CONFIG.premios.length - 1;
+}
 
 function girar() {
   if (spinning || alreadySpun) return;
@@ -512,21 +540,32 @@ function girar() {
   const btn = document.getElementById('spinBtn');
   btn.textContent = '✦ Girando... ✦';
   btn.classList.remove('active'); btn.classList.add('disabled');
-  const extra = 7 * 2 * Math.PI + Math.random() * 2 * Math.PI;
-  const duration = 5500, start = performance.now(), startRot = rotation;
+
+  // Pre-seleccionar ganador con pesos (Sorpresa = 3%)
+  const targetIdx = weightedRandom();
+
+  // Ángulo aleatorio dentro del sector ganador
+  const ptr = -Math.PI / 2;
+  const targetNorm = targetIdx * arc + Math.random() * arc;
+
+  // Calcular giro para parar exactamente en ese sector (mínimo 7 vueltas)
+  const startRot = rotation;
+  const base = ptr - targetNorm - startRot;
+  const minExtra = 7 * 2 * Math.PI;
+  const k = Math.ceil((minExtra - base) / (2 * Math.PI));
+  const extra = base + k * 2 * Math.PI;
+
+  const duration = 5500, start = performance.now();
   function tick(now) {
     const elapsed = now - start, t = Math.min(elapsed / duration, 1);
     const ease = 1 - Math.pow(1 - t, 4);
     rotation = startRot + extra * ease;
     drawWheel(rotation);
     if (t < 1) { requestAnimationFrame(tick); return; }
-    const ptr = -Math.PI / 2;
-    const norm = ((ptr - rotation) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
-    const idx = Math.floor(norm / arc) % n;
     spinning = false; alreadySpun = true;
     localStorage.setItem('kique_ruleta_v1', '1');
     updateSpinState(true);
-    showPrize(idx);
+    showPrize(targetIdx);
   }
   requestAnimationFrame(tick);
 }
